@@ -1,5 +1,5 @@
 @import 'tailwindcss';
-@import "tw-animate-css";
+@import 'tw-animate-css';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -133,21 +133,21 @@
   -ms-overflow-style: none; /* IE 10+ */
 }
 
-.border-1px-BEDDED{
+.border-1px-BEDDED {
   border-bottom-width: 1px;
-  border-color: #BEDDED
+  border-color: #bedded;
 }
 
-.text-14-20-500{
+.text-14-20-500 {
   font-size: 14px;
   line-height: 20px;
   font-weight: 500;
   vertical-align: middle;
   vertical-align: middle;
-  color: #ECFBFF;
+  color: #ecfbff;
 }
 
-.text-14-20-400{
+.text-14-20-400 {
   font-size: 14px;
   line-height: 20px;
   font-weight: 400;
@@ -155,7 +155,7 @@
   vertical-align: middle;
 }
 
-.text-12-16-400{
+.text-12-16-400 {
   font-size: 12px;
   line-height: 16px;
   font-weight: 400;
@@ -163,10 +163,10 @@
   vertical-align: middle;
 }
 
-.text-18-28-600{
+.text-18-28-600 {
   font-size: 18px;
   line-height: 28px;
   font-weight: 600;
-  color: #000E1C;
+  color: #000e1c;
   vertical-align: middle;
 }

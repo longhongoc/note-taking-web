@@ -121,9 +121,9 @@ export default function Home() {
       });
       if (id) {
         const updatedProject = await getAllProjects();
-        const updatedNote = await getNotes(currentProject.id)
+        const updatedNote = await getNotes(currentProject.id);
         setProjectLists(updatedProject);
-        setNoteLists(updatedNote)
+        setNoteLists(updatedNote);
         setOpenNote(false);
       }
     } catch {
@@ -382,18 +382,23 @@ export default function Home() {
           </div>
           <div className=" w-full flex flex-1 flex-col items-center p-[8px]">
             {noteLists?.map((res, index) => (
-
-              <div key={index} className={cn(` w-[303px] h-[104px] rounded-[10px] p-[12px] cursor-pointer`, {"bg-[#A0E2FF]": activeNote === index})} >
-              <div className=" w-[255px] h-full flex flex-col gap-[6px]">
-                <h2 className=" text-14-20-500 !text-[#000E1C]">
-                  Welcome to Notes
-                </h2>
-                <span className=" text-12-16-400">
-                  This is your first note. Start writing your thoughts here!
-                </span>
-                <span className=" text-12-16-400">Sep 27, 10:25 AM</span>
+              <div
+                key={index}
+                className={cn(
+                  ` w-[303px] h-[104px] rounded-[10px] p-[12px] cursor-pointer`,
+                  { 'bg-[#A0E2FF]': activeNote === index }
+                )}
+              >
+                <div className=" w-[255px] h-full flex flex-col gap-[6px]">
+                  <h2 className=" text-14-20-500 !text-[#000E1C]">
+                    Welcome to Notes
+                  </h2>
+                  <span className=" text-12-16-400">
+                    This is your first note. Start writing your thoughts here!
+                  </span>
+                  <span className=" text-12-16-400">Sep 27, 10:25 AM</span>
+                </div>
               </div>
-            </div>
             ))}
           </div>
           <div className=" w-[319px] h-[201px] border-t-[1px] border-[#BEDDED] p-[16px]">
