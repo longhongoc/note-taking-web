@@ -10,6 +10,7 @@ import {
   LuEllipsisVertical,
   LuTrash2,
 } from 'react-icons/lu';
+import { CiShare1 } from 'react-icons/ci';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -22,7 +23,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { create_colors } from '@/utils/constant';
 import { useEffect, useState } from 'react';
@@ -34,21 +34,25 @@ import {
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { Textarea } from '@/components/ui/textarea';
 import { useForm } from 'react-hook-form';
+import Link from 'next/link';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { formatDate } from '@/utils/handleTime';
 import { createProject, getAllProjects } from '@/lib/projectManagement';
 import { createNote, getNotes } from '@/lib/noteManagement';
+import { createResource, getResources } from '@/lib/resourceManagement';
+import LexicalText from '@/components/lexicalEditor/LexicalEditor';
 
-// Use the Project type from projectManagement for consistency
 import type { Project } from '@/lib/projectManagement';
 import type { Note } from '@/lib/noteManagement';
+import type { Resource } from '@/lib/resourceManagement';
 
 export default function Home() {
   const [openProject, setOpenProject] = useState(false);
@@ -63,6 +67,10 @@ export default function Home() {
   const [activeNote, setActiveNote] = useState<number | null>(null);
   const [currentNote, setCurrentNote] = useState<Note | null>(null);
 
+  const [resourceLists, setResourceLists] = useState<Resource[] | null>(null);
+  const [activeResource, setActiveResource] = useState<number | null>(null);
+  const [currentResource, setCurrentResource] = useState<Resource | null>(null);
+
   const formSchemaProject = z.object({
     title: z
       .string()
@@ -76,6 +84,14 @@ export default function Home() {
       .string()
       .min(3, 'Title must be at least 3 characters')
       .max(50, 'Title up to 50 characters'),
+  });
+
+  const formSchemaResource = z.object({
+    title: z
+      .string()
+      .min(3, 'Title must be at least 3 characters')
+      .max(50, 'Title up to 50 characters'),
+    url: z.url(' Url is invalid'),
   });
 
   const formProject = useForm<z.infer<typeof formSchemaProject>>({
@@ -93,9 +109,26 @@ export default function Home() {
     },
   });
 
+  const formResource = useForm<z.infer<typeof formSchemaResource>>({
+    resolver: zodResolver(formSchemaResource),
+    defaultValues: {
+      title: '',
+      url: '',
+    },
+  });
+
   useEffect(() => {
-    getAllProjects().then((value) => setProjectLists(value));
-  }, []);
+    getAllProjects().then((value) => {
+      setProjectLists(value);
+    });
+  }, [noteLists, resourceLists]);
+
+  useEffect(() => {
+    if (currentProject?.id) {
+      getNotes(currentProject.id).then((res) => setNoteLists(res));
+      getResources(currentProject.id).then((res) => setResourceLists(res));
+    }
+  }, [currentProject]);
 
   const onSubmitProject = async (values: z.infer<typeof formSchemaProject>) => {
     try {
@@ -120,11 +153,30 @@ export default function Home() {
         content: '',
       });
       if (id) {
-        const updatedProject = await getAllProjects();
         const updatedNote = await getNotes(currentProject.id);
-        setProjectLists(updatedProject);
         setNoteLists(updatedNote);
         setOpenNote(false);
+      }
+    } catch {
+      console.log('Failed update data');
+    }
+  };
+
+  const onSubmitResource = async (
+    values: z.infer<typeof formSchemaResource>
+  ) => {
+    try {
+      if (!currentProject?.id) {
+        throw new Error('No project selected');
+      }
+      const id = await createResource(currentProject.id, {
+        title: values.title,
+        url: values.url,
+      });
+      if (id) {
+        const updatedResource = await getResources(currentProject.id);
+        setResourceLists(updatedResource);
+        setOpenResource(false);
       }
     } catch {
       console.log('Failed update data');
@@ -302,7 +354,7 @@ export default function Home() {
             </p>
           </div>
         </div>
-        <div className=" w-[320px] h-full flex flex-col bg-[#F5FDFF] border-1px-BEDDED">
+        <div className=" w-[320px] h-full flex flex-col bg-[#F5FDFF] border-r-2 border-[#BEDDED]">
           <div className=" w-[319px] h-[113px] border-1px-BEDDED px-[16px] py-[16px]">
             <section className=" flex items-center gap-[12px]">
               <div
@@ -350,7 +402,7 @@ export default function Home() {
                         <FormItem>
                           <FormControl>
                             <Input
-                              placeholder="Enter note titel..."
+                              placeholder="Enter note title..."
                               {...field}
                               className=" w-[398px] h-[36px]"
                             />
@@ -388,15 +440,19 @@ export default function Home() {
                   ` w-[303px] h-[104px] rounded-[10px] p-[12px] cursor-pointer`,
                   { 'bg-[#A0E2FF]': activeNote === index }
                 )}
+                onClick={() => {
+                  setActiveNote(index);
+                  setCurrentNote(res);
+                }}
               >
                 <div className=" w-[255px] h-full flex flex-col gap-[6px]">
                   <h2 className=" text-14-20-500 !text-[#000E1C]">
-                    Welcome to Notes
+                    {res?.title}
                   </h2>
+                  <span className=" text-12-16-400">{res?.content}</span>
                   <span className=" text-12-16-400">
-                    This is your first note. Start writing your thoughts here!
+                    {formatDate(res.createdAt)}
                   </span>
-                  <span className=" text-12-16-400">Sep 27, 10:25 AM</span>
                 </div>
               </div>
             ))}
@@ -406,16 +462,108 @@ export default function Home() {
               <LuLink className=" inline" /> <span>Resources</span>{' '}
               <LuChevronDown className="inline" />
             </div>
-            <div className=" w-[287px] h-[32]"></div>
+            <div className=" w-[287px] h-[32px] mt-4">
+              <Dialog open={openResource} onOpenChange={setOpenResource}>
+                <DialogTrigger asChild>
+                  <button className=" w-[287px] h-[32px] rounded-[8px] text-14-20-500 !text-[#000E1C] shadow-[0px_1px_2px_0px_#0000000D] border-2 border-[#BEDDED]">
+                    <LuPlus className=" inline" /> Add Resource
+                  </button>
+                </DialogTrigger>
+                <DialogContent className=" w-[448px] bg-[#ECFBFF] shadow-[0px_4px_6px_-4px_#0000001A] border-1px-BEDDED">
+                  <DialogHeader className=" w-[120px] h-[18px]">
+                    <DialogTitle className=" text-[18px] leading-[18px] font-semibold">
+                      Add Resource
+                    </DialogTitle>
+                  </DialogHeader>
+                  <Form {...formResource}>
+                    <form
+                      onSubmit={formResource.handleSubmit(onSubmitResource)}
+                      className=" w-full flex flex-col justify-between gap-4 hide-scrollbar"
+                    >
+                      <FormField
+                        control={formResource.control}
+                        name="title"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Title</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="Enter resource title..."
+                                {...field}
+                                className=" w-[398px] h-[36px]"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={formResource.control}
+                        name="url"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>URL</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="https://example.com"
+                                {...field}
+                                className=" w-[398px] h-[36px]"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <DialogFooter className="mt-[5px]">
+                        <DialogClose asChild>
+                          <Button
+                            variant="outline"
+                            className=" border-1px-BEDDED bg-[#ECFBFF]"
+                          >
+                            Cancel
+                          </Button>
+                        </DialogClose>
+                        <Button
+                          type="submit"
+                          className=" bg-[#00579A] shadow-[0px_1px_2px_0px_#0000000D] opacity-[50%]"
+                        >
+                          Add Resource
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </Form>
+                </DialogContent>
+              </Dialog>
+            </div>
+            <div className=" w-full h-[88px] flex flex-col gap-2 overflow-x-scroll hide-scrollbar mt-2">
+              {resourceLists?.map((value, index) => (
+                <div
+                  key={index}
+                  className=" w-full h-[24px] flex items-center gap-2"
+                >
+                  <CiShare1 className=" w-[16px] h-[16px] inline" />
+                  <Link
+                    href={value.url ?? '#'}
+                    className=" !text-[#00579A] text-14-20-500"
+                  >
+                    {value.title}
+                  </Link>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-        <div className=" flex flex-1 justify-center flex-col items-center h-full bg-[#ECFBFF]">
-          <span className=" text-[19px] leading-[28px] font-medium text-[#537789] align-middle text-center">
-            No Note Selected
-          </span>
-          <span className=" text-[15px] leading-[24px] font-normal text-[#537789] align-middle text-center mt-[8px]">
-            Select a note to start editing, or create a new one
-          </span>
+        <div className=" flex flex-1 h-full bg-[#ECFBFF]">
+          <LexicalText>
+            <div className=" w-full flex-1 p-[24px]">
+              <h3 className=" w-full text-[14px] leading-[20px] font-bold shadow-[0px_1px_2px_0px_#0000000D]">
+                {currentNote?.title}
+              </h3>
+              <span className=" text-12-16-400">
+                Last updated {formatDate(currentNote?.createdAt)}
+              </span>
+            </div>
+          </LexicalText>
         </div>
       </main>
     </div>

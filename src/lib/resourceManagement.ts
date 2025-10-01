@@ -6,14 +6,14 @@ import {
   getDocs,
   updateDoc,
   deleteDoc,
+  increment,
 } from 'firebase/firestore';
 
 export interface Resource {
   id?: string;
   title: string;
-  type?: string;
   url?: string;
-  createdAt: number;
+  createdAt?: import('firebase/firestore').Timestamp | null;
 }
 
 // CREATE Resource
@@ -23,6 +23,12 @@ export const createResource = async (projectId: string, resource: Resource) => {
     ...resource,
     createdAt: Date.now(),
   });
+  if (docRef) {
+    const projectRef = doc(db, 'projects', projectId);
+    await updateDoc(projectRef, {
+      resourceCount: increment(1),
+    });
+  }
   return { id: docRef.id, ...resource };
 };
 
@@ -49,5 +55,10 @@ export const updateResource = async (
 // DELETE Resource
 export const deleteResource = async (projectId: string, resourceId: string) => {
   const resourceRef = doc(db, 'projects', projectId, 'resources', resourceId);
-  await deleteDoc(resourceRef);
+  await deleteDoc(resourceRef).then(async () => {
+    const projectRef = doc(db, 'projects', projectId);
+    await updateDoc(projectRef, {
+      resourceCount: increment(-1),
+    });
+  });
 };

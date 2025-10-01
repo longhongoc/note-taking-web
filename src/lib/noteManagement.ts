@@ -6,6 +6,7 @@ import {
   getDocs,
   updateDoc,
   deleteDoc,
+  increment,
 } from 'firebase/firestore';
 
 export interface Note {
@@ -21,6 +22,12 @@ export const createNote = async (projectId: string, note: Note) => {
     ...note,
     createdAt: Date.now(),
   });
+  if (docRef) {
+    const projectRef = doc(db, 'projects', projectId);
+    await updateDoc(projectRef, {
+      noteCount: increment(1),
+    });
+  }
   return { id: docRef.id, ...note };
 };
 
@@ -44,5 +51,10 @@ export const updateNote = async (
 // DELETE Note
 export const deleteNote = async (projectId: string, noteId: string) => {
   const noteRef = doc(db, 'projects', projectId, 'notes', noteId);
-  await deleteDoc(noteRef);
+  await deleteDoc(noteRef).then(async () => {
+    const projectRef = doc(db, 'projects', projectId);
+    await updateDoc(projectRef, {
+      noteCount: increment(-1),
+    });
+  });
 };
