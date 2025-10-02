@@ -851,7 +851,7 @@ export default function Home() {
                     onOpenChange={setOpenResourceChange}
                   >
                     <DialogTrigger asChild>
-                      <button className=" rounded-[8px] text-14-20-500 !text-[#000E1C] shadow-[0px_1px_2px_0px_#0000000D] ">
+                      <button className=" rounded-[8px] text-14-20-500 !text-[#000E1C] shadow-[0px_1px_2px_0px_#0000000D] cursor-pointer">
                         <LuFolder className=" w-[16px] h-[16px] text-[#537789]" />
                       </button>
                     </DialogTrigger>
