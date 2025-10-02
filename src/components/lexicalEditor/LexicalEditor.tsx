@@ -196,7 +196,7 @@ export default function LexicalText({
           <div className=" w-full flex-1 p-[24px]">
             <input
               type="text"
-              defaultValue={currNoteData?.title}
+              value={currNoteData?.title}
               className=" w-full text-[14px] leading-[20px] font-bold shadow-[0px_1px_2px_0px_#0000000D]"
               onChange={(e) => handleTitle(e.target.value)}
             />

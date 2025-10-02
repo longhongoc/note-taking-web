@@ -10,9 +10,6 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { LuTrash2 } from 'react-icons/lu';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Popover,
   PopoverContent,
