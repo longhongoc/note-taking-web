@@ -7,6 +7,7 @@ import {
   updateDoc,
   deleteDoc,
   increment,
+  serverTimestamp,
 } from 'firebase/firestore';
 
 export interface Note {
@@ -42,10 +43,15 @@ export const getNotes = async (projectId: string) => {
 export const updateNote = async (
   projectId: string,
   noteId: string,
-  data: Partial<Note>
+  title: string,
+  content: string
 ) => {
   const noteRef = doc(db, 'projects', projectId, 'notes', noteId);
-  await updateDoc(noteRef, data);
+  await updateDoc(noteRef, {
+    title: title,
+    content: content,
+    createdAt: serverTimestamp(),
+  });
 };
 
 // DELETE Note

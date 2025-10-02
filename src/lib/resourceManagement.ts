@@ -7,6 +7,7 @@ import {
   updateDoc,
   deleteDoc,
   increment,
+  serverTimestamp,
 } from 'firebase/firestore';
 
 export interface Resource {
@@ -46,10 +47,15 @@ export const getResources = async (projectId: string) => {
 export const updateResource = async (
   projectId: string,
   resourceId: string,
-  data: Partial<Resource>
+  title: string,
+  url: string
 ) => {
   const resourceRef = doc(db, 'projects', projectId, 'resources', resourceId);
-  await updateDoc(resourceRef, data);
+  await updateDoc(resourceRef, {
+    title: title,
+    url: url,
+    createAt: serverTimestamp(),
+  });
 };
 
 // DELETE Resource

@@ -1,11 +1,3 @@
-/**
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- */
-
 import { AutoFocusPlugin } from '@lexical/react/LexicalAutoFocusPlugin';
 import { LexicalComposer } from '@lexical/react/LexicalComposer';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
@@ -28,11 +20,17 @@ import {
 import { HeadingNode, QuoteNode } from '@lexical/rich-text';
 import { ListNode, ListItemNode } from '@lexical/list';
 
-import ExampleTheme from './ExampleTheme';
+import { theme } from './ExampleTheme';
 import ToolbarPlugin from './plugins/ToolbarPlugin';
-import TreeViewPlugin from './plugins/TreeViewPlugin';
 import { parseAllowedColor, parseAllowedFontSize } from './styleConfig';
 import './styles.css';
+import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin';
+import { EditorState } from 'lexical';
+import { useState, useCallback, useMemo } from 'react';
+import debounce from 'lodash/debounce';
+import LoadContentPlugin from './plugins/LoadContentPlugin';
+import { Note } from '@/lib/noteManagement';
+import { formatDate } from '@/utils/handleTime';
 
 const placeholder = 'Enter some rich text...';
 
@@ -42,9 +40,6 @@ const removeStylesExportDOM = (
 ): DOMExportOutput => {
   const output = target.exportDOM(editor);
   if (output && isHTMLElement(output.element)) {
-    // Remove all inline styles and classes if the element is an HTMLElement
-    // Children are checked as well since TextNode can be nested
-    // in i, b, and strong tags.
     for (const el of [
       output.element,
       ...output.element.querySelectorAll('[style],[class]'),
@@ -65,8 +60,6 @@ const exportMap: DOMExportOutputMap = new Map<
 ]);
 
 const getExtraStyles = (element: HTMLElement): string => {
-  // Parse styles from pasted input, but only if they match exactly the
-  // sort of styles that would be produced by exportDOM
   let extraStyles = '';
   const fontSize = parseAllowedFontSize(element.style.fontSize);
   const backgroundColor = parseAllowedColor(element.style.backgroundColor);
@@ -86,8 +79,6 @@ const getExtraStyles = (element: HTMLElement): string => {
 const constructImportMap = (): DOMConversionMap => {
   const importMap: DOMConversionMap = {};
 
-  // Wrap all TextNode importers with a function that also imports
-  // the custom styles implemented by the playground
   for (const [tag, fn] of Object.entries(TextNode.importDOM() || {})) {
     importMap[tag] = (importNode) => {
       const importer = fn(importNode);
@@ -129,41 +120,90 @@ const constructImportMap = (): DOMConversionMap => {
   return importMap;
 };
 
-const editorConfig = {
-  html: {
-    export: exportMap,
-    import: constructImportMap(),
-  },
-  namespace: 'React.js Demo',
-  nodes: [
-    ParagraphNode,
-    TextNode,
-    HeadingNode,
-    QuoteNode,
-    ListNode,
-    ListItemNode,
-  ],
-  onError(error: Error) {
-    throw error;
-  },
-  theme: ExampleTheme,
-};
-
 export default function LexicalText({
-  children,
+  onUpdate,
+  currContent,
+  currNoteData,
 }: Readonly<{
-  children: React.ReactNode;
+  onUpdate: (curr: object, currtitle: string) => void;
+  currContent: string;
+  currNoteData: Note;
 }>) {
+  const [currText, setCurrText] = useState<object | object>({});
+  const [currTitle, setCurrTitle] = useState<string | string>(
+    currNoteData.title
+  );
+  const editorConfig = {
+    html: {
+      export: exportMap,
+      import: constructImportMap(),
+    },
+    namespace: 'React.js Demo',
+    nodes: [
+      ParagraphNode,
+      TextNode,
+      HeadingNode,
+      QuoteNode,
+      ListNode,
+      ListItemNode,
+    ],
+    onError(error: Error) {
+      throw error;
+    },
+    theme: theme,
+    editorState: null,
+  };
+
+  const debouncedSave = useMemo(
+    () =>
+      debounce((json) => {
+        setCurrText(json);
+      }, 500),
+    []
+  );
+
+  const onChange = useCallback(
+    async (editorState: EditorState) => {
+      const json = editorState;
+      debouncedSave(json);
+    },
+    [debouncedSave]
+  );
+
+  const debouncedFilter = useMemo(
+    () =>
+      debounce((title: string) => {
+        setCurrTitle(title);
+      }, 300),
+    []
+  );
+
+  const handleTitle = (value: string) => {
+    debouncedFilter(value);
+  };
   return (
     <LexicalComposer initialConfig={editorConfig}>
       <div className="editor-container">
         <ToolbarPlugin>
-          <button className=" w-[88px] h-[34px] bg-[#00579A] rounded-[8px] shadow-[0px_1px_2px_0px_#0000000D] text-14-20-500">
+          <button
+            className=" w-[88px] h-[34px] bg-[#00579A] rounded-[8px] shadow-[0px_1px_2px_0px_#0000000D] text-14-20-500 cursor-pointer"
+            onClick={() => onUpdate(currText || {}, currTitle)}
+          >
             Save
           </button>
         </ToolbarPlugin>
         <div className="editor-inner">
-          {children}
+          <div className=" w-full flex-1 p-[24px]">
+            <input
+              type="text"
+              defaultValue={currNoteData?.title}
+              className=" w-full text-[14px] leading-[20px] font-bold shadow-[0px_1px_2px_0px_#0000000D]"
+              onChange={(e) => handleTitle(e.target.value)}
+            />
+            <span className=" text-12-16-400">
+              Last updated {formatDate(currNoteData?.createdAt)}
+            </span>
+          </div>
           <RichTextPlugin
             contentEditable={
               <ContentEditable
@@ -177,8 +217,11 @@ export default function LexicalText({
             ErrorBoundary={LexicalErrorBoundary}
           />
           <HistoryPlugin />
+          <OnChangePlugin onChange={onChange} />
           <ListPlugin />
           <AutoFocusPlugin />
+          <LoadContentPlugin content={currContent} />
+
           {/* <TreeViewPlugin /> */}
         </div>
       </div>

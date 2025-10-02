@@ -6,8 +6,9 @@ import {
   getDoc,
   doc,
   updateDoc,
-  deleteDoc,
   serverTimestamp,
+  onSnapshot,
+  deleteDoc,
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 
@@ -69,16 +70,49 @@ export async function getProjectById(
 // UPDATE
 export async function updateProject(
   projectId: string,
-  data: Partial<Project>
+  title: string,
+  color: string
 ): Promise<void> {
   const projectRef = doc(db, 'projects', projectId);
   await updateDoc(projectRef, {
-    ...data,
+    title: title,
+    color: color,
     updatedAt: serverTimestamp(),
   });
 }
 
 // DELETE
 export async function deleteProject(projectId: string): Promise<void> {
-  await deleteDoc(doc(db, 'projects', projectId));
+  const projectRef = doc(db, 'projects', projectId);
+  const notesSnap = await getDocs(
+    collection(db, 'projects', projectId, 'notes')
+  );
+  for (const note of notesSnap.docs) {
+    await deleteDoc(note.ref);
+  }
+  const resourcesSnap = await getDocs(
+    collection(db, 'projects', projectId, 'resources')
+  );
+  for (const res of resourcesSnap.docs) {
+    await deleteDoc(res.ref);
+  }
+  await deleteDoc(projectRef);
 }
+
+export const listenTotalCounts = (
+  callback: (counts: { totalNotes: number; totalResources: number }) => void
+) => {
+  const projectsRef = collection(db, 'projects');
+  return onSnapshot(projectsRef, (snapshot) => {
+    let totalNotes = 0;
+    let totalResources = 0;
+
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      totalNotes += data.noteCount || 0;
+      totalResources += data.resourceCount || 0;
+    });
+
+    callback({ totalNotes, totalResources });
+  });
+};

@@ -6,7 +6,7 @@
  *
  */
 
-export default {
+export const theme = {
   code: 'editor-code',
   heading: {
     h1: 'editor-heading-h1',

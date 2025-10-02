@@ -7,8 +7,6 @@ import {
   LuSearch,
   LuLink,
   LuChevronDown,
-  LuEllipsisVertical,
-  LuTrash2,
 } from 'react-icons/lu';
 import { CiShare1 } from 'react-icons/ci';
 import { Button } from '@/components/ui/button';
@@ -25,12 +23,7 @@ import {
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { create_colors } from '@/utils/constant';
-import { useEffect, useState } from 'react';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+import { useEffect, useState, useMemo } from 'react';
 import {
   Form,
   FormControl,
@@ -39,27 +32,52 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { Textarea } from '@/components/ui/textarea';
+import DeleteDialog from '@/components/deleteDialog/DeleteDialog';
 import { useForm } from 'react-hook-form';
 import Link from 'next/link';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { formatDate } from '@/utils/handleTime';
-import { createProject, getAllProjects } from '@/lib/projectManagement';
-import { createNote, getNotes } from '@/lib/noteManagement';
-import { createResource, getResources } from '@/lib/resourceManagement';
+import {
+  createProject,
+  deleteProject,
+  getAllProjects,
+  updateProject,
+  listenTotalCounts,
+} from '@/lib/projectManagement';
+import {
+  createNote,
+  deleteNote,
+  getNotes,
+  updateNote,
+} from '@/lib/noteManagement';
+import {
+  createResource,
+  deleteResource,
+  getResources,
+  updateResource,
+} from '@/lib/resourceManagement';
 import LexicalText from '@/components/lexicalEditor/LexicalEditor';
+import { extractPlainText } from '@/components/lexicalEditor/PlainText';
 
 import type { Project } from '@/lib/projectManagement';
 import type { Note } from '@/lib/noteManagement';
 import type { Resource } from '@/lib/resourceManagement';
 
+import debounce from 'lodash/debounce';
+
 export default function Home() {
   const [openProject, setOpenProject] = useState(false);
+  const [openProjectChange, setOpenProjectChange] = useState(false);
   const [openNote, setOpenNote] = useState(false);
   const [openResource, setOpenResource] = useState(false);
+  const [openResourceChange, setOpenResourceChange] = useState(false);
 
   const [projectLists, setProjectLists] = useState<Project[] | null>(null);
+  const [totalNoteAndResource, setTotalNoteAndResource] = useState({
+    totalNotes: 0,
+    totalResources: 0,
+  });
   const [activeProject, setActiveProject] = useState<number | null>(null);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
 
@@ -67,11 +85,21 @@ export default function Home() {
   const [activeNote, setActiveNote] = useState<number | null>(null);
   const [currentNote, setCurrentNote] = useState<Note | null>(null);
 
-  const [resourceLists, setResourceLists] = useState<Resource[] | null>(null);
+  const [resourceLists, setResourceLists] = useState<Resource[] | []>([]);
   const [activeResource, setActiveResource] = useState<number | null>(null);
   const [currentResource, setCurrentResource] = useState<Resource | null>(null);
 
+  const [filteredNotes, setFilteredNotes] = useState<Note[] | []>([]);
+
   const formSchemaProject = z.object({
+    title: z
+      .string()
+      .min(3, 'Title must be at least 3 characters')
+      .max(50, 'Title up to 50 characters'),
+    color: z.string().nonempty('You must choose a color'),
+  });
+
+  const formSchemaProjectChange = z.object({
     title: z
       .string()
       .min(3, 'Title must be at least 3 characters')
@@ -102,6 +130,14 @@ export default function Home() {
     },
   });
 
+  const formProjectChange = useForm<z.infer<typeof formSchemaProjectChange>>({
+    resolver: zodResolver(formSchemaProjectChange),
+    defaultValues: {
+      title: '',
+      color: '',
+    },
+  });
+
   const formNote = useForm<z.infer<typeof formSchemaNote>>({
     resolver: zodResolver(formSchemaNote),
     defaultValues: {
@@ -121,12 +157,17 @@ export default function Home() {
     getAllProjects().then((value) => {
       setProjectLists(value);
     });
+    listenTotalCounts((value) => setTotalNoteAndResource(value));
   }, [noteLists, resourceLists]);
 
   useEffect(() => {
     if (currentProject?.id) {
-      getNotes(currentProject.id).then((res) => setNoteLists(res));
+      getNotes(currentProject.id).then((res) => {
+        setNoteLists(res);
+        setFilteredNotes(res);
+      });
       getResources(currentProject.id).then((res) => setResourceLists(res));
+      console.log(currentProject);
     }
   }, [currentProject]);
 
@@ -138,6 +179,42 @@ export default function Home() {
         setProjectLists(updated);
         setOpenProject(false);
       }
+    } catch {
+      console.log('Failed update data');
+    }
+  };
+
+  const onSubmitProjectChange = async (
+    values: z.infer<typeof formSchemaProject>
+  ) => {
+    try {
+      await updateProject(
+        currentProject?.id || '',
+        values.title,
+        values.color
+      ).then(async () => {
+        await getAllProjects().then((res) => {
+          setProjectLists(res);
+          const updated = res.find((p) => p.id === currentProject?.id) || null;
+          setCurrentProject(updated);
+        });
+        setOpenProjectChange(false);
+      });
+    } catch {
+      console.log('Failed update data');
+    }
+  };
+
+  const onDeleteProject = async () => {
+    try {
+      await deleteProject(currentProject?.id || '').then(async () => {
+        await getAllProjects().then((res) => setProjectLists(res));
+        setCurrentProject(null);
+        setFilteredNotes([]);
+        setCurrentNote(null);
+        setResourceLists([]);
+        setOpenProject(false);
+      });
     } catch {
       console.log('Failed update data');
     }
@@ -155,10 +232,27 @@ export default function Home() {
       if (id) {
         const updatedNote = await getNotes(currentProject.id);
         setNoteLists(updatedNote);
+        setFilteredNotes(updatedNote);
         setOpenNote(false);
       }
     } catch {
       console.log('Failed update data');
+    }
+  };
+
+  const onDeleteNote = async () => {
+    try {
+      await deleteNote(currentProject?.id || '', currentNote?.id || '').then(
+        async () => {
+          const updatedNote = await getNotes(currentProject?.id || '');
+          setNoteLists(updatedNote);
+          setFilteredNotes(updatedNote);
+          setCurrentNote(null);
+          setActiveNote(null);
+        }
+      );
+    } catch {
+      console.log('Failed delete data');
     }
   };
 
@@ -183,6 +277,82 @@ export default function Home() {
     }
   };
 
+  const onSubmitResourceChange = async (
+    values: z.infer<typeof formSchemaResource>
+  ) => {
+    try {
+      if (!currentProject?.id) {
+        throw new Error('No project selected');
+      }
+      await updateResource(
+        currentProject.id,
+        currentResource?.id || '',
+        values.title,
+        values.url
+      ).then(async () => {
+        const updatedResource = await getResources(currentProject.id || '');
+        setResourceLists(updatedResource);
+        setOpenResourceChange(false);
+      });
+    } catch (error: unknown) {
+      console.log('Failed update data', error);
+    }
+  };
+
+  const onDeleteResource = async () => {
+    try {
+      await deleteResource(
+        currentProject?.id || '',
+        currentResource?.id || ''
+      ).then(async () => {
+        const updatedResource = await getResources(currentProject?.id || '');
+        setResourceLists(updatedResource);
+        setOpenResourceChange(false);
+      });
+    } catch {
+      console.log('Failed delete data');
+    }
+  };
+
+  const onUpdateContent = async (values: object, title: string) => {
+    try {
+      if (!currentProject?.id && !currentNote?.id) {
+        throw new Error('No project selected');
+      }
+      if (currentProject?.id && currentNote?.id) {
+        await updateNote(
+          currentProject.id,
+          currentNote?.id,
+          title,
+          JSON.stringify(values)
+        ).then(async () => {
+          const updatedNote = await getNotes(currentProject.id || '');
+          setNoteLists(updatedNote);
+          setCurrentNote(updatedNote[activeNote || 0]);
+          setFilteredNotes(updatedNote);
+          alert('Save data successfully');
+        });
+      }
+    } catch {
+      console.log('Failed update data');
+    }
+  };
+
+  const debouncedFilter = useMemo(
+    () =>
+      debounce((query: string, list: Note[]) => {
+        const filtered = list.filter((note) =>
+          note.title?.toLowerCase().includes(query.toLowerCase())
+        );
+        setFilteredNotes(filtered);
+      }, 300),
+    []
+  );
+
+  const handleSearch = (value: string) => {
+    debouncedFilter(value, noteLists || []);
+  };
+
   return (
     <div className=" font-inter w-sceen h-screen flex items-center justify-items-center">
       <main className=" w-full h-full flex ">
@@ -194,12 +364,9 @@ export default function Home() {
             </div>
             <Dialog open={openProject} onOpenChange={setOpenProject}>
               <DialogTrigger asChild>
-                <Button
-                  variant="outline"
-                  className=" w-[271px] h-[36px] bg-[#00579A] rounded-[8px] text-14-20-500 shadow-[0px_1px_2px_0px_#0000000D] mt-[18px]"
-                >
-                  <LuPlus /> New Project
-                </Button>
+                <button className=" w-[271px] h-[36px] bg-[#00579A] rounded-[8px] text-14-20-500 shadow-[0px_1px_2px_0px_#0000000D] mt-[18px] cursor-pointer hover:border-2 hover:border-[#ADD5E9]">
+                  <LuPlus className=" inline" /> New Project
+                </button>
               </DialogTrigger>
               <DialogContent className=" w-[448px] h-[372px] bg-[#ECFBFF] shadow-[0px_4px_6px_-4px_#0000001A] border-1px-BEDDED">
                 <DialogHeader>
@@ -292,8 +459,8 @@ export default function Home() {
               </DialogContent>
             </Dialog>
           </div>
-          <div className=" w-full flex flex-1 flex-col gap-[3px] px-[12px] py-[16px]">
-            {!projectLists && (
+          <div className=" w-full flex flex-1 flex-col gap-[3px] px-[12px] py-[16px] overflow-x-scroll hide-scrollbar">
+            {!!projectLists && projectLists.length === 0 && (
               <div className=" w-full h-full flex flex-col items-center">
                 <LuFolder className=" w-[48px] h-[48px] text-[#537789]" />
                 <span className=" text-14-20-400">No project yet</span>
@@ -326,31 +493,123 @@ export default function Home() {
                     {res.resourceCount} resources
                   </p>
                 </section>
-                <LuFolder className=" w-[16px] h-[16px] text-[#537789]" />
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <button
-                      className={cn(
-                        'w-[16px] h-[16px] text-[#537789] border-none bg-[#DEF6FF] cursor-pointer',
-                        { 'bg-[#B6E6FF]': activeProject === index }
-                      )}
-                    >
-                      <LuEllipsisVertical />
+                <Dialog
+                  open={activeProject === index && openProjectChange}
+                  onOpenChange={setOpenProjectChange}
+                >
+                  <DialogTrigger asChild>
+                    <button className=" w-[16px] h-[16px] rounded-[8px] text-14-20-500 shadow-[0px_1px_2px_0px_#0000000D] cursor-pointer ">
+                      <LuFolder className=" w-[16px] h-[16px] text-[#537789]" />
                     </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[150px] h-[42px]">
-                    <button className="w-full h-full text-14-20-400 !text-[#E7000B] cursor-pointer">
-                      <LuTrash2 className=" w-[16px] h-[16px] text-[#537789] inline" />{' '}
-                      Delete Project
-                    </button>
-                  </PopoverContent>
-                </Popover>
+                  </DialogTrigger>
+                  <DialogContent className=" w-[448px] bg-[#ECFBFF] shadow-[0px_4px_6px_-4px_#0000001A] border-1px-BEDDED">
+                    <DialogHeader>
+                      <DialogTitle className=" text-[18px] leading-[18px] font-semibold">
+                        Change project title
+                      </DialogTitle>
+                      <DialogDescription className=" text-14-20-400">
+                        Add a new title to your project
+                      </DialogDescription>
+                    </DialogHeader>
+
+                    <Form {...formProjectChange}>
+                      <form
+                        onSubmit={formProjectChange.handleSubmit(
+                          onSubmitProjectChange
+                        )}
+                        className=" w-[398px]"
+                      >
+                        <div className=" w-full overflow-y-scroll hide-scrollbar">
+                          <FormField
+                            control={formProjectChange.control}
+                            name="title"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className=" text-[14px] leading-[14px] font-medium ">
+                                  Project Name
+                                </FormLabel>
+                                <FormControl>
+                                  <Input
+                                    placeholder="Enter project name..."
+                                    {...field}
+                                    className=" w-[398px] h-[36px] mt-[8px]"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={formProjectChange.control}
+                            name="color"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className=" text-[14px] leading-[14px] font-medium mt-[24px]">
+                                  Project Color
+                                </FormLabel>
+                                <FormControl>
+                                  <div className="grid grid-cols-5 gap-3">
+                                    {create_colors.map((res, index) => (
+                                      <label
+                                        key={index}
+                                        className="cursor-pointer"
+                                      >
+                                        <input
+                                          type="radio"
+                                          value={res}
+                                          checked={field.value === res}
+                                          onChange={() => field.onChange(res)}
+                                          className="hidden peer"
+                                        />
+                                        <div
+                                          className={cn(
+                                            'w-[44px] h-[44px] rounded-[10px] border-2 peer-checked:border-[#000E1C]',
+                                            res
+                                          )}
+                                        ></div>
+                                      </label>
+                                    ))}
+                                  </div>
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        <DialogFooter className="  ">
+                          <DialogClose asChild>
+                            <Button
+                              type="submit"
+                              variant="outline"
+                              className=" border-1px-BEDDED bg-[#ECFBFF]"
+                            >
+                              Cancel
+                            </Button>
+                          </DialogClose>
+                          <Button
+                            type="submit"
+                            className=" bg-[#00579A] shadow-[0px_1px_2px_0px_#0000000D] opacity-[50%]"
+                          >
+                            Change
+                          </Button>
+                        </DialogFooter>
+                      </form>
+                    </Form>
+                  </DialogContent>
+                </Dialog>
+                <DeleteDialog
+                  desb="Delete Project"
+                  warning="Are you sure you want to delete this project? This action cannot be undone and will permanently delete all notes and resources in this project."
+                  func={onDeleteProject}
+                />
               </div>
             ))}
           </div>
           <div className=" w-[319px] h-[49px] flex justify-center items-center border-t-[1px] border-[#ADD5E9]">
             <p className=" text-12-16-400">
-              1 projects <LuDot className=" inline" /> 0 total notes
+              {totalNoteAndResource.totalNotes} notes{' '}
+              <LuDot className=" inline" />{' '}
+              {totalNoteAndResource.totalResources} resources
             </p>
           </div>
         </div>
@@ -369,17 +628,20 @@ export default function Home() {
               placeholder="Search notes..."
               className=" gap-[13px] mt-[16px]"
               icon={<LuSearch />}
+              onChange={(e) => handleSearch(e.target.value)}
             />
           </div>
           <div className=" w-[319px] h-[65px] border-1px-BEDDED flex justify-center items-center">
             <Dialog open={openNote} onOpenChange={setOpenNote}>
               <DialogTrigger asChild>
-                <Button
-                  variant="outline"
-                  className=" w-[287px] h-[32px] bg-[#00579A] rounded-[8px] text-14-20-500 shadow-[0px_1px_2px_0px_#0000000D]"
+                <button
+                  className={cn(
+                    ' w-[287px] h-[32px] bg-[#00579A] rounded-[8px] text-14-20-500 shadow-[0px_1px_2px_0px_#0000000D] cursor-pointer hover:border-2 hover:border-[#ADD5E9]'
+                  )}
+                  disabled={currentProject?.id ? false : true}
                 >
-                  <LuPlus /> New Note
-                </Button>
+                  <LuPlus className=" inline" /> New Note
+                </button>
               </DialogTrigger>
               <DialogContent className=" w-[448px] h-[172px] bg-[#ECFBFF] shadow-[0px_4px_6px_-4px_#0000001A] border-1px-BEDDED">
                 <DialogHeader>
@@ -432,12 +694,21 @@ export default function Home() {
               </DialogContent>
             </Dialog>
           </div>
-          <div className=" w-full flex flex-1 flex-col items-center p-[8px]">
-            {noteLists?.map((res, index) => (
+          <div className=" w-full flex flex-1 flex-col items-center p-2 overflow-x-scroll hide-scrollbar">
+            {filteredNotes && filteredNotes.length === 0 && (
+              <div className=" w-full h-full flex flex-col items-center">
+                <LuFolder className=" w-[48px] h-[48px] text-[#537789]" />
+                <span className=" text-14-20-400">No notes yet</span>
+                <span className=" text-12-16-400">
+                  Create your first note to get started
+                </span>
+              </div>
+            )}
+            {filteredNotes?.map((res, index) => (
               <div
                 key={index}
                 className={cn(
-                  ` w-[303px] h-[104px] rounded-[10px] p-[12px] cursor-pointer`,
+                  ` w-[303px] min-h-[90px] rounded-[10px] p-2 cursor-pointer`,
                   { 'bg-[#A0E2FF]': activeNote === index }
                 )}
                 onClick={() => {
@@ -445,11 +716,20 @@ export default function Home() {
                   setCurrentNote(res);
                 }}
               >
-                <div className=" w-[255px] h-full flex flex-col gap-[6px]">
-                  <h2 className=" text-14-20-500 !text-[#000E1C]">
-                    {res?.title}
-                  </h2>
-                  <span className=" text-12-16-400">{res?.content}</span>
+                <div className=" w-full h-full flex flex-col gap-[6px]">
+                  <div className=" w-full flex justify-between">
+                    <h2 className=" text-14-20-500 !text-[#000E1C]">
+                      {res?.title}
+                    </h2>
+                    <DeleteDialog
+                      desb="Delete Note"
+                      warning="Are you sure you want to delete this note? This action cannot be undone and will permanently delete this note."
+                      func={onDeleteNote}
+                    />
+                  </div>
+                  <span className=" text-12-16-400 ">
+                    {extractPlainText(res?.content)}
+                  </span>
                   <span className=" text-12-16-400">
                     {formatDate(res.createdAt)}
                   </span>
@@ -465,7 +745,10 @@ export default function Home() {
             <div className=" w-[287px] h-[32px] mt-4">
               <Dialog open={openResource} onOpenChange={setOpenResource}>
                 <DialogTrigger asChild>
-                  <button className=" w-[287px] h-[32px] rounded-[8px] text-14-20-500 !text-[#000E1C] shadow-[0px_1px_2px_0px_#0000000D] border-2 border-[#BEDDED]">
+                  <button
+                    className=" w-[287px] h-[32px] rounded-[8px] text-14-20-500 !text-[#000E1C] shadow-[0px_1px_2px_0px_#0000000D] border-2 border-[#BEDDED]"
+                    disabled={currentProject?.id ? false : true}
+                  >
                     <LuPlus className=" inline" /> Add Resource
                   </button>
                 </DialogTrigger>
@@ -536,34 +819,136 @@ export default function Home() {
               </Dialog>
             </div>
             <div className=" w-full h-[88px] flex flex-col gap-2 overflow-x-scroll hide-scrollbar mt-2">
+              {resourceLists && resourceLists.length === 0 && (
+                <div className=" w-full h-full flex flex-col justify-center items-center">
+                  <LuLink className=" w-[32px] h-[32px] text-[#537789]" />
+                  <span className=" text-12-16-400">No resources yet</span>
+                </div>
+              )}
               {resourceLists?.map((value, index) => (
                 <div
                   key={index}
-                  className=" w-full h-[24px] flex items-center gap-2"
+                  className={cn(
+                    ' w-full h-[24px] flex items-center gap-2 cursor-pointer hover:border-2 border-[#BEDDED] rounded-[8px]',
+                    { 'border-2 border-[#BEDDED]': activeResource === index }
+                  )}
+                  onClick={() => {
+                    setActiveResource(index);
+                    setCurrentResource(value);
+                  }}
                 >
-                  <CiShare1 className=" w-[16px] h-[16px] inline" />
-                  <Link
-                    href={value.url ?? '#'}
-                    className=" !text-[#00579A] text-14-20-500"
+                  <div className=" flex flex-1">
+                    <CiShare1 className=" w-[16px] h-[16px] inline" />
+                    <Link
+                      href={value.url ?? '#'}
+                      className=" !text-[#00579A] mr-[140px] text-14-20-500"
+                    >
+                      {value.title}
+                    </Link>
+                  </div>
+                  <Dialog
+                    open={activeResource === index && openResourceChange}
+                    onOpenChange={setOpenResourceChange}
                   >
-                    {value.title}
-                  </Link>
+                    <DialogTrigger asChild>
+                      <button className=" rounded-[8px] text-14-20-500 !text-[#000E1C] shadow-[0px_1px_2px_0px_#0000000D] ">
+                        <LuFolder className=" w-[16px] h-[16px] text-[#537789]" />
+                      </button>
+                    </DialogTrigger>
+                    <DialogContent className=" w-[448px] bg-[#ECFBFF] shadow-[0px_4px_6px_-4px_#0000001A] border-1px-BEDDED">
+                      <DialogHeader className=" w-[120px] h-[18px]">
+                        <DialogTitle className=" text-[18px] leading-[18px] font-semibold">
+                          Add Resource
+                        </DialogTitle>
+                      </DialogHeader>
+                      <Form {...formResource}>
+                        <form
+                          onSubmit={formResource.handleSubmit(
+                            onSubmitResourceChange
+                          )}
+                          className=" w-full flex flex-col justify-between gap-4 hide-scrollbar"
+                        >
+                          <FormField
+                            control={formResource.control}
+                            name="title"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Title</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    placeholder="Enter resource title..."
+                                    {...field}
+                                    className=" w-[398px] h-[36px]"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={formResource.control}
+                            name="url"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>URL</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    placeholder="https://example.com"
+                                    {...field}
+                                    className=" w-[398px] h-[36px]"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <DialogFooter className="mt-[5px]">
+                            <DialogClose asChild>
+                              <Button
+                                variant="outline"
+                                className=" border-1px-BEDDED bg-[#ECFBFF]"
+                              >
+                                Cancel
+                              </Button>
+                            </DialogClose>
+                            <Button
+                              type="submit"
+                              className=" bg-[#00579A] shadow-[0px_1px_2px_0px_#0000000D] opacity-[50%]"
+                            >
+                              Change
+                            </Button>
+                          </DialogFooter>
+                        </form>
+                      </Form>
+                    </DialogContent>
+                  </Dialog>
+                  <DeleteDialog
+                    desb="Delete Resource"
+                    warning="Are you sure you want to delete this resource? This action cannot be undone and will permanently delete this resrouce."
+                    func={onDeleteResource}
+                  />
                 </div>
               ))}
             </div>
           </div>
         </div>
         <div className=" flex flex-1 h-full bg-[#ECFBFF]">
-          <LexicalText>
-            <div className=" w-full flex-1 p-[24px]">
-              <h3 className=" w-full text-[14px] leading-[20px] font-bold shadow-[0px_1px_2px_0px_#0000000D]">
-                {currentNote?.title}
-              </h3>
-              <span className=" text-12-16-400">
-                Last updated {formatDate(currentNote?.createdAt)}
+          {currentNote ? (
+            <LexicalText
+              onUpdate={onUpdateContent}
+              currContent={currentNote?.content || ''}
+              currNoteData={currentNote!}
+            />
+          ) : (
+            <div className=" w-full h-auto flex flex-col justify-center items-center">
+              <span className=" text-[19px] leading-7 font-medium text-[#537789]">
+                No Note Selected
+              </span>
+              <span className=" text-[16px] leading-6 font-normal text-[#537789]">
+                Select a note to start editing, or create a new one
               </span>
             </div>
-          </LexicalText>
+          )}
         </div>
       </main>
     </div>

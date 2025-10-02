@@ -18,13 +18,12 @@ import {
   REDO_COMMAND,
   SELECTION_CHANGE_COMMAND,
   UNDO_COMMAND,
-  INSERT_PARAGRAPH_COMMAND,
 } from 'lexical';
 import {
   INSERT_UNORDERED_LIST_COMMAND,
   INSERT_ORDERED_LIST_COMMAND,
 } from '@lexical/list';
-import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   LuBold,
   LuUndo,
@@ -82,7 +81,7 @@ export default function ToolbarPlugin({
       }),
       editor.registerCommand(
         SELECTION_CHANGE_COMMAND,
-        (_payload, _newEditor) => {
+        () => {
           $updateToolbar();
           return false;
         },
@@ -135,7 +134,7 @@ export default function ToolbarPlugin({
 
   return (
     <div className="toolbar" ref={toolbarRef}>
-      <div className=" flex flex-1 gap-6">
+      <div className=" flex flex-1 justify-around">
         <button
           disabled={!canUndo}
           onClick={() => {
