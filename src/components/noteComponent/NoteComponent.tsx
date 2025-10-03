@@ -91,6 +91,8 @@ export default function NoteComponent({
 
   useEffect(() => {
     handleReloadData();
+    setCurrentNote(null);
+    setActiveNote(null);
   }, [currentProject, handleReloadData]);
 
   const onSubmitNote = async (values: z.infer<typeof formSchemaNote>) => {

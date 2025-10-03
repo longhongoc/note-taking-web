@@ -73,6 +73,8 @@ export default function ResourceComponent({
 
   useEffect(() => {
     handleResourceChange();
+    setCurrentResource(null);
+    setActiveResource(null);
   }, [resourceLists, handleResourceChange]);
 
   useEffect(() => {
