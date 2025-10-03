@@ -14,7 +14,7 @@ import { db } from './firebaseConfig';
 
 // Định nghĩa kiểu dữ liệu Project
 export interface Project {
-  id?: string;
+  id: string;
   title: string;
   color: string;
   resourceCount: number;
@@ -54,16 +54,20 @@ export async function getAllProjects(): Promise<Project[]> {
 }
 
 // READ ONE PROJECT
-export async function getProjectById(
-  projectId: string
-): Promise<Project | null> {
+export async function getProjectById(projectId: string): Promise<Project> {
   const docRef = doc(db, 'projects', projectId);
   const docSnap = await getDoc(docRef);
 
   if (docSnap.exists()) {
     return { id: docSnap.id, ...docSnap.data() } as Project;
   } else {
-    return null;
+    return {
+      id: '',
+      title: '',
+      color: '',
+      resourceCount: 0,
+      noteCount: 0,
+    };
   }
 }
 

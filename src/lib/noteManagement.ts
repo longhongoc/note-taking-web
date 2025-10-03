@@ -4,6 +4,7 @@ import {
   doc,
   addDoc,
   getDocs,
+  getDoc,
   updateDoc,
   deleteDoc,
   increment,
@@ -37,6 +38,30 @@ export const getNotes = async (projectId: string) => {
   const notesRef = collection(db, 'projects', projectId, 'notes');
   const snapshot = await getDocs(notesRef);
   return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Note[];
+};
+
+// READ one Note
+export const getNote = async (
+  projectId: string,
+  noteId: string
+): Promise<Note | null> => {
+  try {
+    const noteRef = doc(db, 'projects', projectId, 'notes', noteId);
+    const noteSnap = await getDoc(noteRef);
+
+    if (noteSnap.exists()) {
+      return {
+        id: noteSnap.id,
+        ...noteSnap.data(),
+      } as Note;
+    } else {
+      console.log('Note not found');
+      return null;
+    }
+  } catch (error) {
+    console.error('Error fetching note:', error);
+    return null;
+  }
 };
 
 // UPDATE Note

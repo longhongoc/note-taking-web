@@ -15,6 +15,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import { useState } from 'react';
 
 type DeleteButton = {
   desb: string;
@@ -23,8 +24,9 @@ type DeleteButton = {
 };
 
 export default function DeleteDialog({ desb, warning, func }: DeleteButton) {
+  const [open, setOpen] = useState(false);
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button className="text-14-20-400 !text-[#E7000B] cursor-pointer">
           <LuEllipsisVertical className=" w-[16px] h-[16px] text-[#537789] inline" />
@@ -45,7 +47,12 @@ export default function DeleteDialog({ desb, warning, func }: DeleteButton) {
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={() => func()}>
+              <AlertDialogAction
+                onClick={() => {
+                  func();
+                  setOpen(false);
+                }}
+              >
                 Continue
               </AlertDialogAction>
             </AlertDialogFooter>

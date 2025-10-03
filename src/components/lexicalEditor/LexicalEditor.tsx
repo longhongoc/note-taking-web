@@ -133,6 +133,8 @@ export default function LexicalText({
   const [currTitle, setCurrTitle] = useState<string | string>(
     currNoteData.title
   );
+  const [changeInput, setChangeInput] = useState(false);
+
   const editorConfig = {
     html: {
       export: exportMap,
@@ -187,19 +189,33 @@ export default function LexicalText({
         <ToolbarPlugin>
           <button
             className=" w-[88px] h-[34px] bg-[#00579A] rounded-[8px] shadow-[0px_1px_2px_0px_#0000000D] text-14-20-500 cursor-pointer"
-            onClick={() => onUpdate(currText || {}, currTitle)}
+            onClick={() => {
+              onUpdate(currText || {}, currTitle);
+              setChangeInput(false);
+            }}
           >
             Save
           </button>
         </ToolbarPlugin>
         <div className="editor-inner">
           <div className=" w-full flex-1 p-[24px]">
-            <input
-              type="text"
-              value={currNoteData?.title}
-              className=" w-full text-[14px] leading-[20px] font-bold shadow-[0px_1px_2px_0px_#0000000D]"
-              onChange={(e) => handleTitle(e.target.value)}
-            />
+            {!changeInput && (
+              <h2
+                className=" w-full text-[14px] leading-[20px] font-bold shadow-[0px_1px_2px_0px_#0000000D]"
+                onClick={() => setChangeInput(!changeInput)}
+              >
+                {currNoteData?.title}
+              </h2>
+            )}
+            {changeInput && (
+              <input
+                type="text"
+                placeholder={currNoteData?.title}
+                className=" w-full text-[14px] leading-[20px] font-bold shadow-[0px_1px_2px_0px_#0000000D]"
+                onChange={(e) => handleTitle(e.target.value)}
+                onDoubleClick={() => setChangeInput(!changeInput)}
+              />
+            )}
             <span className=" text-12-16-400">
               Last updated {formatDate(currNoteData?.createdAt)}
             </span>
