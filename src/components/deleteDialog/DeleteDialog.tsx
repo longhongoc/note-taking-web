@@ -9,7 +9,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { LuTrash2 } from 'react-icons/lu';
+import { LuTrash2, LuEllipsisVertical } from 'react-icons/lu';
 import {
   Popover,
   PopoverContent,
@@ -27,7 +27,7 @@ export default function DeleteDialog({ desb, warning, func }: DeleteButton) {
     <Popover>
       <PopoverTrigger asChild>
         <button className="text-14-20-400 !text-[#E7000B] cursor-pointer">
-          <LuTrash2 className=" w-[16px] h-[16px] text-[#537789] inline" />
+          <LuEllipsisVertical className=" w-[16px] h-[16px] text-[#537789] inline" />
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-[150px] h-[42px]">
